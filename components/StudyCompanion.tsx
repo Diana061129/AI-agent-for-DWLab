@@ -181,6 +181,16 @@ const StudyCompanion: React.FC<StudyCompanionProps> = ({ onEarnPoints, isSuspend
     }
   };
 
+  const getVideoContainerStyle = () => {
+    if (!isActive) return 'border border-slate-200';
+    switch (status) {
+      case 'focused': return 'ring-2 ring-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]';
+      case 'distracted': return 'ring-4 ring-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)]';
+      case 'absent': return 'ring-4 ring-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.4)]';
+      default: return 'border border-slate-200';
+    }
+  };
+
   if (isSuspended) return null; // Or hide entirely
 
   return (
@@ -222,7 +232,7 @@ const StudyCompanion: React.FC<StudyCompanionProps> = ({ onEarnPoints, isSuspend
         {!isMinimized && (
           <div className="p-4">
              {/* Camera View */}
-             <div className="relative aspect-video bg-black rounded-lg overflow-hidden mb-3 border border-slate-200">
+             <div className={`relative aspect-video bg-black rounded-lg overflow-hidden mb-3 transition-all duration-300 ${getVideoContainerStyle()}`}>
                 <video 
                   ref={videoRef} 
                   autoPlay 
@@ -240,7 +250,7 @@ const StudyCompanion: React.FC<StudyCompanionProps> = ({ onEarnPoints, isSuspend
                 {isActive && (
                   <>
                       {/* Status Badge */}
-                      <div className="absolute top-2 left-2">
+                      <div className="absolute top-2 left-2 z-10">
                         <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${getStatusColor()}`}>
                             <div className={`w-1.5 h-1.5 rounded-full ${status === 'focused' ? 'bg-green-500' : 'bg-red-500'}`}></div>
                             {status}
@@ -248,14 +258,14 @@ const StudyCompanion: React.FC<StudyCompanionProps> = ({ onEarnPoints, isSuspend
                       </div>
 
                       {/* Earned Points Badge */}
-                      <div className="absolute top-2 right-2">
+                      <div className="absolute top-2 right-2 z-10">
                          <div className="px-2 py-0.5 rounded-full bg-blue-600/90 text-white text-[10px] font-bold shadow-sm">
                            +{sessionPoints} pts
                          </div>
                       </div>
 
                       {/* Ergonomic Indicators */}
-                      <div className="absolute bottom-2 left-2 flex gap-1">
+                      <div className="absolute bottom-2 left-2 flex gap-1 z-10">
                           {ergonomics.slouching && (
                               <div className="bg-red-500/90 p-1 rounded text-white" title="Bad Posture">
                                   <Armchair className="w-3 h-3" />
@@ -267,6 +277,25 @@ const StudyCompanion: React.FC<StudyCompanionProps> = ({ onEarnPoints, isSuspend
                               </div>
                           )}
                       </div>
+
+                      {/* Visual Feed Overlays for Feedback */}
+                      {status === 'distracted' && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-red-500/10 pointer-events-none backdrop-blur-[1px]">
+                             <div className="bg-red-600/90 text-white px-3 py-1 rounded-full text-xs font-bold animate-bounce shadow-lg flex items-center gap-1">
+                                <Smartphone className="w-3 h-3" /> DISTRACTED
+                             </div>
+                          </div>
+                      )}
+                      {status === 'absent' && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-yellow-500/10 pointer-events-none backdrop-blur-[1px]">
+                             <div className="bg-yellow-600/90 text-white px-3 py-1 rounded-full text-xs font-bold animate-pulse shadow-lg flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" /> ABSENT
+                             </div>
+                          </div>
+                      )}
+                      {status === 'focused' && (
+                         <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_30px_rgba(34,197,94,0.15)]"></div>
+                      )}
                   </>
                 )}
              </div>
