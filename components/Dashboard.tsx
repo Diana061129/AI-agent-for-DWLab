@@ -33,9 +33,9 @@ const Dashboard: React.FC<DashboardProps> = ({ settings, username }) => {
     }
   }, [settings.researchField, username]);
 
-  const fetchBulletin = async () => {
+  const fetchBulletin = async (isManualRefresh = false) => {
     if (!settings.researchField) return;
-    
+
     setLoading(true);
     try {
       const result = await generateResearchBulletin(settings);
@@ -59,7 +59,8 @@ const Dashboard: React.FC<DashboardProps> = ({ settings, username }) => {
     if (settings.researchField) {
       const existing = localStorage.getItem(getStorageKey('bulletin'));
       if (!existing && !loading && !content) {
-        fetchBulletin();
+        // Initial load is free or pre-loaded? Let's make initial load free to not block new users
+        fetchBulletin(false);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,7 +127,7 @@ const Dashboard: React.FC<DashboardProps> = ({ settings, username }) => {
             {lastUpdated && ` • Updated: ${lastUpdated.toLocaleTimeString()}`}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
            {content && (
             <>
               <button 
@@ -146,12 +147,12 @@ const Dashboard: React.FC<DashboardProps> = ({ settings, username }) => {
             </>
           )}
           <button
-            onClick={fetchBulletin}
+            onClick={() => fetchBulletin(true)}
             disabled={loading}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Generating Analysis...' : 'Refresh Report'}
+            {loading ? 'Analyzing...' : 'Refresh'}
           </button>
         </div>
       </div>

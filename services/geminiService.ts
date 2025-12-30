@@ -1,5 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse, Part, Content } from "@google/genai";
-import { LitReviewResult, UserSettings, TimeRange, ModelType, QuizQuestion, ChatMessage } from "../types";
+import { LitReviewResult, UserSettings, TimeRange, ModelType, QuizQuestion, ChatMessage, StudyMonitorResult } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -28,6 +28,16 @@ const getTimeRangeText = (range: TimeRange) => {
     case 'all': return 'recent years';
     default: return 'recent';
   }
+};
+
+/**
+ * Helper to clean JSON strings returned by the model (removes markdown code blocks)
+ */
+const cleanJsonString = (text: string): string => {
+  if (!text) return "{}";
+  // Remove ```json ... ``` or ``` ... ``` wrappers
+  let clean = text.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+  return clean.trim();
 };
 
 /**
@@ -164,8 +174,7 @@ export const analyzeLiterature = async (
       config,
     });
 
-    const jsonText = response.text || "{}";
-    return JSON.parse(jsonText) as LitReviewResult;
+    return JSON.parse(cleanJsonString(response.text || "{}")) as LitReviewResult;
   } catch (error) {
     console.error("Lit Review Error:", error);
     throw new Error("Failed to analyze the literature. Please check the link or try again.");
@@ -210,7 +219,7 @@ export const generateQuiz = async (
       config,
     });
 
-    return JSON.parse(response.text || "[]") as QuizQuestion[];
+    return JSON.parse(cleanJsonString(response.text || "[]")) as QuizQuestion[];
   } catch (error) {
     console.error("Quiz Error:", error);
     return [];
@@ -260,4 +269,60 @@ export const createResearchChat = (settings: UserSettings, historyMessages: Chat
   });
 
   return chat;
+};
+
+/**
+ * Study Companion: Monitor User State
+ */
+export const analyzeStudyFrame = async (imageBase64: string): Promise<StudyMonitorResult> => {
+  const config = {
+    responseMimeType: "application/json",
+  };
+
+  const prompt = `
+    Analyze this image of a user studying/working. 
+    Check for 5 specific things:
+    1. IsFocused: Are they looking at the screen or notes?
+    2. IsUsingPhone: Are they holding or looking at a phone?
+    3. IsAbsent: Is the chair empty?
+    4. IsSlouching: Is their posture bad? (Hunched shoulders, leaning too close, head down).
+    5. Lighting: Is the room 'good', 'dim' (too dark for eyes), or 'bright'?
+    
+    Provide a witty, human-like, spoken-style 'advice' (max 1 sentence). 
+    If they are using a phone, be strict. 
+    If they are slouching, remind them to sit up.
+    If lighting is bad, tell them to turn on a light.
+    If they are doing great, encourage them.
+    
+    Return JSON:
+    { 
+      "isFocused": boolean, 
+      "isUsingPhone": boolean, 
+      "isAbsent": boolean, 
+      "isSlouching": boolean,
+      "lightingCondition": "good" | "dim" | "bright",
+      "advice": "string" 
+    }
+  `;
+
+  const parts: Part[] = [
+    { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
+    { text: prompt }
+  ];
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview', // Flash is sufficient and fast for vision
+      contents: { parts },
+      config,
+    });
+
+    return JSON.parse(cleanJsonString(response.text || "{}")) as StudyMonitorResult;
+  } catch (error) {
+    console.error("Study Monitor Error:", error);
+    return { 
+      isFocused: true, isUsingPhone: false, isAbsent: false, 
+      isSlouching: false, lightingCondition: 'good', advice: "" 
+    };
+  }
 };

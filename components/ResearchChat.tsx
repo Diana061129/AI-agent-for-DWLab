@@ -3,6 +3,7 @@ import { createResearchChat } from '../services/geminiService';
 import { ChatMessage, UserSettings } from '../types';
 import { Send, User, Bot, Loader2, Download, Trash2 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
+import { parse } from 'marked';
 
 interface ResearchChatProps {
   settings: UserSettings;
@@ -160,13 +161,17 @@ const ResearchChat: React.FC<ResearchChatProps> = ({ settings, username }) => {
             </div>
             
             <div className={`
-              max-w-[80%] p-4 rounded-xl text-sm leading-relaxed whitespace-pre-wrap
+              max-w-[85%] md:max-w-[75%] p-4 rounded-xl text-sm leading-relaxed
               ${msg.role === 'user' 
-                ? 'bg-blue-600 text-white rounded-tr-none' 
-                : 'bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200'}
+                ? 'bg-blue-600 text-white rounded-tr-none whitespace-pre-wrap' 
+                : 'bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200 prose prose-sm max-w-none prose-slate'}
               ${msg.isError ? 'bg-red-50 text-red-600 border-red-200' : ''}
             `}>
-              {msg.text}
+              {msg.role === 'user' ? (
+                msg.text
+              ) : (
+                <div dangerouslySetInnerHTML={{ __html: parse(msg.text) as string }} />
+              )}
             </div>
           </div>
         ))}

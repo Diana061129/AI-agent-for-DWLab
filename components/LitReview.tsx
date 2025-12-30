@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { analyzeLiterature, generateQuiz } from '../services/geminiService';
 import { LitReviewResult, UserSettings, UserStats, QuizQuestion } from '../types';
 import { Search, FileText, FlaskConical, Lightbulb, Target, ArrowRight, Presentation, Mic, Image as ImageIcon, Download, AlertTriangle, GraduationCap, CheckCircle, XCircle, History, ChevronRight, PlusCircle, Trash2 } from 'lucide-react';
+import { parse } from 'marked';
 
 interface LitReviewProps {
   settings?: UserSettings;
@@ -30,26 +31,14 @@ const LitReview: React.FC<LitReviewProps> = ({ settings, userStats, onUpdateStat
   const [pointsEarned, setPointsEarned] = useState(0);
 
   const historyKey = `scholarAi_${username}_lit_review_history`;
-  const legacyKey = `scholarAi_${username}_lit_review_report`; // For migration
 
   // Load History
   useEffect(() => {
     const savedHistory = localStorage.getItem(historyKey);
-    
     if (savedHistory) {
       setHistory(JSON.parse(savedHistory));
     } else {
-      // Migrate legacy single report if it exists
-      const legacyReport = localStorage.getItem(legacyKey);
-      if (legacyReport) {
-        const report = JSON.parse(legacyReport);
-        const migrated = { ...report, id: Date.now().toString(), date: new Date().toISOString() };
-        setHistory([migrated]);
-        localStorage.setItem(historyKey, JSON.stringify([migrated]));
-        localStorage.removeItem(legacyKey); // Clean up
-      } else {
-        setHistory([]);
-      }
+      setHistory([]);
     }
   }, [username]);
 
@@ -100,11 +89,10 @@ const LitReview: React.FC<LitReviewProps> = ({ settings, userStats, onUpdateStat
       setHistory(prev => [newReport, ...prev]);
       setSelectedReportId(newReport.id!);
 
-      // Reward for reading
-      const newPoints = userStats.points + 50;
+      // Only increment papers read count, do NOT give points for generation anymore.
+      // Points must be earned via quizzes or study focus.
       onUpdateStats({ 
         ...userStats, 
-        points: newPoints,
         papersRead: userStats.papersRead + 1 
       });
       setUrl('');
@@ -171,63 +159,55 @@ const LitReview: React.FC<LitReviewProps> = ({ settings, userStats, onUpdateStat
   const getCriticalAnalysisString = (analysis: LitReviewResult['criticalAnalysis']) => {
     if (!analysis) return 'N/A';
     if (typeof analysis === 'string') return analysis;
-    return `Limitations: ${analysis.limitations || 'N/A'}\nBiases: ${analysis.biases || 'N/A'}\nMissing Validation: ${analysis.missingValidation || 'N/A'}`;
+    return `**Limitations:** ${analysis.limitations || 'N/A'}\n\n**Biases:** ${analysis.biases || 'N/A'}\n\n**Missing Validation:** ${analysis.missingValidation || 'N/A'}`;
   };
 
-  const getCriticalAnalysisHtml = (analysis: LitReviewResult['criticalAnalysis']) => {
-    if (!analysis) return '<p>N/A</p>';
-    if (typeof analysis === 'string') return `<p>${analysis}</p>`;
-    return `<ul><li><strong>Limitations:</strong> ${analysis.limitations || 'N/A'}</li><li><strong>Biases:</strong> ${analysis.biases || 'N/A'}</li><li><strong>Missing Validation:</strong> ${analysis.missingValidation || 'N/A'}</li></ul>`;
+  const generateMarkdownReport = (report: LitReviewResult) => {
+    return `
+# ${report.title}
+
+## Main Work
+${report.mainWork}
+
+## Significant Progress
+${report.significantProgress}
+
+## Critical Analysis
+${getCriticalAnalysisString(report.criticalAnalysis)}
+
+${report.imageAnalysis ? `## Visual Analysis\n${report.imageAnalysis}\n` : ''}
+
+## Principles & Methodology
+${report.principlesAndMethods}
+
+## Implications
+${report.implications}
+    `.trim();
   };
 
   const handleExport = (format: 'md' | 'doc') => {
     if (!activeReport) return;
+    const markdownContent = generateMarkdownReport(activeReport);
 
-    let content = '';
+    let blob: Blob;
+    let filename = `Analysis_${activeReport.title.substring(0, 20).replace(/\s+/g, '_')}`;
+
     if (format === 'md') {
-       content = `# ${activeReport.title}\n\n## Main Work\n${activeReport.mainWork}\n\n## Significant Progress\n${activeReport.significantProgress}\n\n## Critical Analysis\n${getCriticalAnalysisString(activeReport.criticalAnalysis)}\n\n## Methods\n${activeReport.principlesAndMethods}\n\n## Implications\n${activeReport.implications}`;
+       blob = new Blob([markdownContent], { type: 'text/markdown' });
+       filename += '.md';
     } else {
-       content = `<html><body><h1>${activeReport.title}</h1><h2>Main Work</h2><p>${activeReport.mainWork}</p><h2>Significant Progress</h2><p>${activeReport.significantProgress}</p><h2>Critical Analysis</h2>${getCriticalAnalysisHtml(activeReport.criticalAnalysis)}<h2>Methods</h2><p>${activeReport.principlesAndMethods}</p></body></html>`;
+       // Convert markdown to HTML for doc export
+       const htmlContent = `<html><body>${parse(markdownContent)}</body></html>`;
+       blob = new Blob([htmlContent], { type: 'application/msword' });
+       filename += '.doc';
     }
 
-    const blob = new Blob([content], { type: format === 'md' ? 'text/markdown' : 'application/msword' });
     const urlObj = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = urlObj;
-    a.download = `Analysis_${activeReport.title.substring(0, 20).replace(/\s+/g, '_')}.${format === 'md' ? 'md' : 'doc'}`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(urlObj);
-  };
-
-  const renderCriticalAnalysis = (analysis: LitReviewResult['criticalAnalysis']) => {
-    if (!analysis) return null;
-    
-    if (typeof analysis === 'string') {
-      return <p className="text-slate-800 leading-relaxed whitespace-pre-line">{analysis}</p>;
-    }
-    
-    return (
-      <div className="space-y-4 text-slate-800">
-        {analysis.limitations && (
-          <div>
-            <strong className="block text-red-900 text-sm mb-1">Limitations</strong>
-            <p className="leading-relaxed">{analysis.limitations}</p>
-          </div>
-        )}
-        {analysis.biases && (
-          <div>
-            <strong className="block text-red-900 text-sm mb-1">Potential Biases</strong>
-            <p className="leading-relaxed">{analysis.biases}</p>
-          </div>
-        )}
-        {analysis.missingValidation && (
-          <div>
-             <strong className="block text-red-900 text-sm mb-1">Missing Validation</strong>
-             <p className="leading-relaxed">{analysis.missingValidation}</p>
-          </div>
-        )}
-      </div>
-    );
   };
 
   // If no report is active, show the Input Form and History List
@@ -240,9 +220,6 @@ const LitReview: React.FC<LitReviewProps> = ({ settings, userStats, onUpdateStat
             <p className="text-slate-500">
                Generate detailed reports, PPT drafts, and knowledge quizzes from any academic paper.
             </p>
-          </div>
-          <div className="bg-blue-50 px-4 py-2 rounded-lg border border-blue-100 text-blue-900 font-bold text-sm">
-             Points: {userStats.points}
           </div>
         </div>
 
@@ -292,7 +269,7 @@ const LitReview: React.FC<LitReviewProps> = ({ settings, userStats, onUpdateStat
                 disabled={loading || !url}
                 className="ml-auto px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
-                {loading ? 'Analyzing...' : 'Generate Analysis'}
+                {loading ? 'Analyzing...' : 'Generate'}
                 {!loading && <ArrowRight className="w-4 h-4" />}
               </button>
             </div>
@@ -410,42 +387,9 @@ const LitReview: React.FC<LitReviewProps> = ({ settings, userStats, onUpdateStat
             
             <div className="p-6">
               {activeTab === 'report' && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-blue-700 font-bold uppercase text-xs tracking-wider">
-                        <Target className="w-4 h-4" /> Main Work
-                      </div>
-                      <p className="text-slate-700 leading-relaxed">{activeReport.mainWork}</p>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-green-700 font-bold uppercase text-xs tracking-wider">
-                        <Lightbulb className="w-4 h-4" /> Significant Progress
-                      </div>
-                      <p className="text-slate-700 leading-relaxed">{activeReport.significantProgress}</p>
-                    </div>
-                  </div>
-                  {activeReport.criticalAnalysis && (
-                    <div className="bg-red-50 p-6 rounded-lg border border-red-100 mt-4">
-                       <div className="flex items-center gap-2 text-red-800 font-bold uppercase text-xs tracking-wider mb-3">
-                          <AlertTriangle className="w-4 h-4" /> Critical Analysis
-                        </div>
-                        {renderCriticalAnalysis(activeReport.criticalAnalysis)}
-                     </div>
-                  )}
-                  {activeReport.imageAnalysis && (
-                     <div className="bg-amber-50 p-6 rounded-lg border border-amber-100 mt-4">
-                       <div className="flex items-center gap-2 text-amber-800 font-bold uppercase text-xs tracking-wider mb-3">
-                          <ImageIcon className="w-4 h-4" /> Visual Analysis
-                        </div>
-                        <p className="text-slate-800 leading-relaxed whitespace-pre-line">{activeReport.imageAnalysis}</p>
-                     </div>
-                  )}
-                   <div className="mt-4">
-                     <div className="flex items-center gap-2 text-purple-700 font-bold uppercase text-xs tracking-wider mb-3">
-                        <FlaskConical className="w-4 h-4" /> Principles & Methodology
-                      </div>
-                      <p className="text-slate-700 leading-relaxed whitespace-pre-line">{activeReport.principlesAndMethods}</p>
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="prose prose-slate max-w-none prose-headings:font-serif prose-headings:text-slate-900 prose-p:text-slate-700 prose-a:text-blue-600">
+                     <div dangerouslySetInnerHTML={{ __html: parse(generateMarkdownReport(activeReport)) as string }} />
                   </div>
                 </div>
               )}

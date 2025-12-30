@@ -1,5 +1,7 @@
 {
   "name": "ScholarAI - Research Assistant",
   "description": "An intelligent research companion powered by Gemini. Features automated literature surveillance, deep-dive reading reports, and a specialized Q&A engine for academic discovery.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

@@ -74,3 +74,12 @@ export interface LitReviewResult {
   groupMeetingSpeech?: string;
   imageAnalysis?: string;
 }
+
+export interface StudyMonitorResult {
+  isFocused: boolean;
+  isUsingPhone: boolean;
+  isAbsent: boolean;
+  isSlouching: boolean;
+  lightingCondition: 'good' | 'dim' | 'bright';
+  advice: string;
+}

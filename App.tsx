@@ -6,8 +6,9 @@ import LitReview from './components/LitReview';
 import SettingsComponent from './components/SettingsComponent';
 import GameCenter from './components/GameCenter';
 import AuthScreen from './components/AuthScreen';
+import StudyCompanion from './components/StudyCompanion';
 import { View, UserSettings, UserStats } from './types';
-import { Menu } from 'lucide-react';
+import { Menu, Coins } from 'lucide-react';
 
 const DEFAULT_SETTINGS: UserSettings = {
   researchField: '',
@@ -19,7 +20,7 @@ const DEFAULT_SETTINGS: UserSettings = {
 };
 
 const DEFAULT_STATS: UserStats = {
-  points: 0,
+  points: 0, 
   papersRead: 0,
   minutesStudied: 0,
   quizzesTaken: 0,
@@ -88,6 +89,16 @@ const App: React.FC = () => {
     }
   };
 
+  const handleEarnPoints = (amount: number) => {
+    if (!user) return;
+    setStats(prev => {
+       const newPoints = prev.points + amount;
+       const newStats = { ...prev, points: newPoints };
+       localStorage.setItem(`scholarAi_${user}_stats`, JSON.stringify(newStats));
+       return newStats;
+    });
+  };
+
   const handleSaveSettings = (newSettings: UserSettings) => {
     setSettings(newSettings);
     if (user) {
@@ -105,7 +116,7 @@ const App: React.FC = () => {
       if (document.hasFocus() && currentView !== View.GAME_CENTER) {
         setStats(prev => {
           const newMinutes = prev.minutesStudied + 1;
-          const newPoints = prev.points + 10; // 10 points per minute
+          const newPoints = prev.points + 2; // Passive points
           const newStats = { ...prev, minutesStudied: newMinutes, points: newPoints };
           localStorage.setItem(`scholarAi_${user}_stats`, JSON.stringify(newStats));
           return newStats;
@@ -142,7 +153,7 @@ const App: React.FC = () => {
   const scholarInfo = getScholarInfo(stats.minutesStudied);
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 overflow-hidden relative">
       <Sidebar 
         currentView={currentView} 
         onChangeView={setCurrentView}
@@ -166,22 +177,24 @@ const App: React.FC = () => {
 
         {/* Desktop Header Stats */}
         <div className="hidden md:flex absolute top-4 right-8 z-20 gap-4 items-center">
-           <div className="text-right">
-             <div className="text-sm font-bold text-slate-800">{user}</div>
-             <div className="text-xs text-blue-600 font-medium">{scholarInfo.title}</div>
-           </div>
-           <div className="bg-white/90 backdrop-blur shadow-sm border border-slate-200 px-3 py-1 rounded-lg text-xs font-bold text-slate-600">
-              {Math.floor(stats.minutesStudied / 60)}h {stats.minutesStudied % 60}m studied
-           </div>
-           <div className="bg-blue-600 shadow-md shadow-blue-900/20 px-3 py-1 rounded-lg text-xs font-bold text-white">
-              {stats.points} Points
+           {/* Only Points are shown prominent now as requested */}
+           <div className="bg-white/90 backdrop-blur shadow-sm border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-2">
+              <Coins className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+              <span className="font-bold text-slate-800 text-lg">{stats.points}</span>
+              <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Points</span>
            </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
           {renderContent()}
         </main>
       </div>
+      
+      {/* Floating Study Companion Widget - Renders Globally except when isSuspended */}
+      <StudyCompanion 
+        onEarnPoints={handleEarnPoints} 
+        isSuspended={currentView === View.GAME_CENTER} 
+      />
     </div>
   );
 };
